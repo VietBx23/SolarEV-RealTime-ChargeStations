@@ -12,10 +12,10 @@ const server = http.createServer(app);
 // 2. Cấu hình Socket.io (Tối ưu cho Cloud Render)
 const io = new Server(server, {
     cors: {
-        origin: "*", // Cho phép tất cả các nguồn truy cập (có thể siết lại khi deploy thật)
+        origin: "*", 
         methods: ["GET", "POST"]
     },
-    transports: ['websocket'] // Rất quan trọng: Render hoạt động tốt nhất với websocket thuần
+    transports: ['websocket'] 
 });
 
 app.use(express.json());
@@ -28,7 +28,7 @@ const config = {
     port: parseInt(process.env.DB_PORT) || 1433,
     database: process.env.DB_DATABASE,
     options: {
-        encrypt: false, // Để false nếu SQL Server không yêu cầu mã hóa SSL
+        encrypt: false, 
         trustServerCertificate: true
     },
     pool: {
@@ -48,11 +48,7 @@ async function autoUpdateStationStatus() {
         await transaction.begin();
 
         try {
-            /**
-             * LƯU Ý MÚI GIỜ: 
-             * - Sử dụng GETUTCDATE() nếu server SQL và Render lệch múi giờ.
-             * - Nếu SQL Server của bạn đặt cứng giờ VN, hãy đổi GETUTCDATE() thành GETDATE().
-             */
+            // CẬP NHẬT TRẠNG THÁI: Nếu quá 5 phút không thấy tín hiệu (lastSeen) thì coi là Offline
             const updateActive = `
                 UPDATE ChargeStation SET Status = 1 WHERE Name IN (
                     SELECT DISTINCT ChargePointId FROM ConnectorStatus 
@@ -75,9 +71,8 @@ async function autoUpdateStationStatus() {
                 CASE WHEN DATEDIFF(MINUTE, lastSeen, GETUTCDATE()) > 5 THEN 'Offline' ELSE 'Online' END AS ConnectionStatus
                 FROM ConnectorStatus`);
             
-            // Gửi dữ liệu cho tất cả client đang kết nối
             io.emit('status-updated', result.recordset); 
-            console.log(`[${new Date().toLocaleTimeString()}] 🔄 Đã cập nhật trạm & Phát tin Real-time.`);
+            console.log(`[${new Date().toLocaleTimeString()}] 🔄 Chu kỳ 5 phút: Đã cập nhật trạm & Phát tin.`);
             
         } catch (err) {
             await transaction.rollback();
@@ -94,15 +89,14 @@ async function connectDB() {
         pool = await sql.connect(config);
         console.log('✅ Kết nối SQL Server thành công');
 
-        // Chạy lần đầu ngay khi start
+        // Chạy lần đầu ngay khi khởi động server
         await autoUpdateStationStatus();
 
-        // Quét mỗi 1 phút (60000ms)
-        setInterval(autoUpdateStationStatus, 60000); 
+        // THAY ĐỔI: Quét mỗi 5 phút (5 * 60 * 1000 = 300.000 ms)
+        setInterval(autoUpdateStationStatus, 300000); 
 
     } catch (err) {
         console.error('❌ Kết nối thất bại:', err.message);
-        console.log('Thử lại sau 5 giây...');
         setTimeout(connectDB, 5000);
     }
 }
@@ -111,7 +105,7 @@ connectDB();
 
 // 6. API Routes
 app.get('/', (req, res) => {
-    res.send('EV Charging Station Real-time Backend is running...');
+    res.send('EV Charging Station Real-time Backend (5-min Cycle) is running...');
 });
 
 app.get('/charge-stations', async (req, res) => {
@@ -137,16 +131,16 @@ app.get('/connector-status', async (req, res) => {
     }
 });
 
-// 7. Lắng nghe Socket kết nối (để debug)
+// 7. Socket.io Events
 io.on('connection', (socket) => {
-    console.log('⚡ Một client mới đã kết nối:', socket.id);
+    console.log('⚡ Client connected:', socket.id);
     socket.on('disconnect', () => {
-        console.log('🔥 Client đã ngắt kết nối');
+        console.log('🔥 Client disconnected');
     });
 });
 
 // 8. Chạy Server
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`🚀 Server đang chạy tại port ${PORT}`);
+    console.log(`🚀 Server đang chạy tại port ${PORT} (Chu kỳ quét: 5 phút)`);
 });
