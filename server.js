@@ -28,8 +28,17 @@ const config = {
     server: process.env.DB_SERVER,
     port: parseInt(process.env.DB_PORT) || 1433,
     database: process.env.DB_DATABASE,
-    options: { encrypt: false, trustServerCertificate: true },
-    pool: { max: 10, min: 0, idleTimeoutMillis: 30000 }
+    options: { 
+        encrypt: true, // Render yêu cầu mã hóa để bảo mật
+        trustServerCertificate: true, 
+        connectTimeout: 30000, // Chờ 30 giây để kết nối thay vì 15 giây mặc định
+        requestTimeout: 30000  // Chờ 30 giây cho mỗi câu lệnh SQL
+    },
+    pool: { 
+        max: 10, 
+        min: 0, 
+        idleTimeoutMillis: 30000 
+    }
 };
 
 let pool;
@@ -236,3 +245,4 @@ connectDB();
 
 app.get('/', (req, res) => res.send('SolarEV Pro Monitor is Running (Restart Mode)...'));
 server.listen(process.env.PORT || 3000, () => console.log(`🚀 Server listening on port ${process.env.PORT || 3000}`));
+
